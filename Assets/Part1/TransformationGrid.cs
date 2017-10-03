@@ -63,8 +63,7 @@ public class TransformationGrid : MonoBehaviour
     private Vector3 TransformPoint(int x, int y, int z)
     {
         Vector3 coords = GetCoordinates(x, y, z);
-        transformation.MultiplyPoint(coords);
-        return coords;
+        return transformation.MultiplyPoint(coords);        
     }
 
     private Transform CreateGridPoint(int x, int y, int z)
