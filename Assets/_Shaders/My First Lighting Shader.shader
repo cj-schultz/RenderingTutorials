@@ -23,9 +23,11 @@ Shader "Custom/My First Lighting Shader"
 
 			#pragma target 3.0
 
+			#pragma multi_compile _ VERTEXLIGHT_ON
+
 			#pragma vertex MyVertexProgram
 			#pragma fragment MyFragmentProgram
-									
+						
 			#include "My Lighting.cginc"
 
 			ENDCG
@@ -39,15 +41,17 @@ Shader "Custom/My First Lighting Shader"
 			}
 
 			Blend One One
-			//ZWrite Off
+			ZWrite Off
 
 			CGPROGRAM
 
 			#pragma target 3.0
 
-			#pragma vertex MyVertexProgram
-			#pragma fragment MyFragmentProgram
+			#pragma multi_compile_fwdadd
 
+			#pragma vertex MyVertexProgram
+			#pragma fragment MyFragmentProgram			
+			
 			#include "My Lighting.cginc"
 
 			ENDCG
