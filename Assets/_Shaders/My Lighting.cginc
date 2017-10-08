@@ -74,6 +74,9 @@ UnityIndirect CreateIndirectLight(Interpolators i)
 	indirectLight.diffuse = i.vertexLightColor;
 #endif
 
+#ifdef FORWARD_BASE_PASS
+	indirectLight.diffuse += max(0, ShadeSH9(float4(i.normal, 1)));
+#endif
 	return indirectLight;
 }
 
@@ -86,7 +89,7 @@ float4 MyFragmentProgram(Interpolators i) : SV_TARGET
 	albedo = DiffuseAndSpecularFromMetallic(albedo, _Metallic, specularTint, oneMinusReflectivity);	
 
 	float3 viewDir = normalize(_WorldSpaceCameraPos - i.worldPos);		
-
+	
 	return UNITY_BRDF_PBS(
 		albedo, specularTint,
 		oneMinusReflectivity, _Smoothness, // NOTE(colin): 1 - roughness = _Smoothness
