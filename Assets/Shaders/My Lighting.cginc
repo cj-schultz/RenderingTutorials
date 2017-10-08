@@ -5,9 +5,11 @@
 
 float4 _Tint;
 sampler2D _MainTex;
+sampler2D _HeightMap;
 float4 _MainTex_ST;
 float _Metallic;
 float _Smoothness;
+
 
 struct VertexData {
 	float4 position : POSITION;
@@ -80,15 +82,25 @@ UnityIndirect CreateIndirectLight(Interpolators i)
 	return indirectLight;
 }
 
+void InitializeFragmentNormal(inout Interpolators i)
+{
+	float h = tex2D(_HeightMap, i.uv);
+	i.normal = float3(0, h, 0);
+	i.normal = normalize(i.normal);
+}
+
 float4 MyFragmentProgram(Interpolators i) : SV_TARGET
 {
-	i.normal = normalize(i.normal);		
-	float3 albedo = tex2D(_MainTex, i.uv).rgb * _Tint.rgb;
+	InitializeFragmentNormal(i);
+
+	float3 viewDir = normalize(_WorldSpaceCameraPos - i.worldPos);
+
+	float3 albedo = tex2D(_MainTex, i.uv).rgb * _Tint.rgb;	
+ 
 	float3 specularTint;
 	float oneMinusReflectivity;
-	albedo = DiffuseAndSpecularFromMetallic(albedo, _Metallic, specularTint, oneMinusReflectivity);	
-
-	float3 viewDir = normalize(_WorldSpaceCameraPos - i.worldPos);		
+	albedo = DiffuseAndSpecularFromMetallic(albedo, _Metallic, specularTint, oneMinusReflectivity);		
+	
 	
 	return UNITY_BRDF_PBS(
 		albedo, specularTint,
