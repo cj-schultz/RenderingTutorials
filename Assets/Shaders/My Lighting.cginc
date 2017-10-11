@@ -14,14 +14,14 @@ sampler2D _NormalMap, _DetailNormalMap;
 float _BumpScale, _DetailBumpScale;
 
 struct VertexData {
-	float4 position : POSITION;
+	float4 vertex : POSITION;
 	float3 normal : NORMAL;
 	float4 tangent : TANGENT;
 	float2 uv : TEXCOORD0;
 };
 
 struct Interpolators {
-	float4 position : SV_POSITION;
+	float4 pos : SV_POSITION;
 	float4 uv : TEXCOORD0;
 	float3 normal : TEXCOORD1;
 
@@ -34,8 +34,10 @@ struct Interpolators {
 
 	float3 worldPos : TEXCOORD4;
 
+	SHADOW_COORDS(5)
+
 #ifdef VERTEXLIGHT_ON
-	float3 vertexLightColor : TEXCOORD5;
+	float3 vertexLightColor : TEXCOORD6;
 #endif
 };
 
@@ -59,8 +61,8 @@ float3 CreateBinormal(float3 normal, float3 tangent, float binormalSign)
 Interpolators MyVertexProgram(VertexData v)
 {
 	Interpolators i;
-	i.position = UnityObjectToClipPos(v.position);
-	i.worldPos = mul(unity_ObjectToWorld, v.position);
+	i.pos = UnityObjectToClipPos(v.vertex);
+	i.worldPos = mul(unity_ObjectToWorld, v.vertex);
 	i.normal = UnityObjectToWorldNormal(v.normal);
 #ifdef BINORMAL_PER_FRAGMENT
 	i.tangent = float4(UnityObjectToWorldDir(v.tangent.xyz), v.tangent.w);
@@ -69,7 +71,10 @@ Interpolators MyVertexProgram(VertexData v)
 	i.binormal = CreateBinormal(i.normal, i.tangent.xyz, v.tangent.w);
 #endif
 	i.uv.xy = TRANSFORM_TEX(v.uv, _MainTex);
-	i.uv.zw = TRANSFORM_TEX(v.uv, _DetailTex);
+	i.uv.zw = TRANSFORM_TEX(v.uv, _DetailTex);	
+
+	TRANSFER_SHADOW(i);
+
 	ComputeVertexLightColor(i);
 	return i;
 }
@@ -83,7 +88,9 @@ UnityLight CreateLight(Interpolators i)
 #else
 	light.dir = _WorldSpaceLightPos0.xyz;
 #endif
-	UNITY_LIGHT_ATTENUATION(attenuation, 0, i.worldPos);	
+
+	UNITY_LIGHT_ATTENUATION(attenuation, i, i.worldPos);
+
 	light.color = _LightColor0.rgb * attenuation;	
 	light.ndotl = DotClamped(i.normal, light.dir);
 	return light;
