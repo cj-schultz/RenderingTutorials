@@ -13,14 +13,16 @@ float _Smoothness;
 sampler2D _NormalMap, _DetailNormalMap;
 float _BumpScale, _DetailBumpScale;
 
-struct VertexData {
+struct VertexData 
+{
 	float4 vertex : POSITION;
 	float3 normal : NORMAL;
 	float4 tangent : TANGENT;
 	float2 uv : TEXCOORD0;
 };
 
-struct Interpolators {
+struct Interpolators 
+{
 	float4 pos : SV_POSITION;
 	float4 uv : TEXCOORD0;
 	float3 normal : TEXCOORD1;
@@ -96,18 +98,33 @@ UnityLight CreateLight(Interpolators i)
 	return light;
 }
 
-UnityIndirect CreateIndirectLight(Interpolators i)
+float3 BoxProjection(float3 direction, float3 position, float3 cubemapPosition, float3 boxMin, float3 boxMax)
+{
+	boxMin -= position;
+	boxMax -= position;
+	float3 factors = ((direction > 0 ? boxMax : boxMin) - position) / direction;	
+	float scalar = min(min(factors.x, factors.y), factors.z);
+	return direction * scalar + (position - cubemapPosition);
+}
+
+UnityIndirect CreateIndirectLight(Interpolators i, float3 viewDir)
 {
 	UnityIndirect indirectLight;
 	indirectLight.diffuse = 0;
 	indirectLight.specular = 0;
 
 #ifdef VERTEXLIGHT_ON
-	indirectLight.diffuse = i.vertexLightColor;
+	indirectLight.diffuse = i.vertexLightColor;	
 #endif
 
 #ifdef FORWARD_BASE_PASS
-	indirectLight.diffuse += max(0, ShadeSH9(float4(i.normal, 1)));
+	indirectLight.diffuse += max(0, ShadeSH9(float4(i.normal, 1)));	
+	float3 reflectionDir = reflect(-viewDir, i.normal);
+
+	Unity_GlossyEnvironmentData envData;
+	envData.roughness = 1 - _Smoothness;
+	envData.reflUVW = BoxProjection(reflectionDir, i.worldPos, unity_SpecCube0_ProbePosition, unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
+	indirectLight.specular = Unity_GlossyEnvironment(UNITY_PASS_TEXCUBE(unity_SpecCube0), unity_SpecCube0_HDR, envData);
 #endif
 	return indirectLight;
 }
@@ -149,7 +166,7 @@ float4 MyFragmentProgram(Interpolators i) : SV_TARGET
 		albedo, specularTint,
 		oneMinusReflectivity, _Smoothness, // NOTE(colin): 1 - roughness = _Smoothness
 		i.normal, viewDir,
-		CreateLight(i), CreateIndirectLight(i)
+		CreateLight(i), CreateIndirectLight(i, viewDir)
 	);
 }
 #endif
