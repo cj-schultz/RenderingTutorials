@@ -13,6 +13,8 @@ float4 _MainTex_ST, _DetailTex_ST;
 sampler2D _NormalMap, _DetailNormalMap;
 float _BumpScale, _DetailBumpScale;
 
+sampler2D _MetallicMap;
+
 float _Metallic;
 float _Smoothness;
 
@@ -43,6 +45,25 @@ struct Interpolators {
 		float3 vertexLightColor : TEXCOORD6;
 	#endif
 };
+
+float GetMetallic(Interpolators i)
+{
+#ifdef _METALLIC_MAP
+	return tex2D(_MetallicMap, i.uv).r;
+#else
+	return _Metallic;
+#endif
+	
+}
+
+float GetSmoothness(Interpolators i)
+{
+#ifdef _METALLIC_MAP
+	return tex2D(_MetallicMap, i.uv).a * _Smoothness;
+#else
+	return _Smoothness;
+#endif
+}
 
 void ComputeVertexLightColor (inout Interpolators i) {
 	#if defined(VERTEXLIGHT_ON)
@@ -125,7 +146,7 @@ UnityIndirect CreateIndirectLight (Interpolators i, float3 viewDir) {
 
 		float3 reflectionDir = reflect(-viewDir, i.normal);
 		Unity_GlossyEnvironmentData envData;
-		envData.roughness = 1 - _Smoothness;
+		envData.roughness = 1 - GetSmoothness(i);
 
 		envData.reflUVW = BoxProjection(
 			reflectionDir, i.worldPos,
@@ -192,12 +213,12 @@ float4 MyFragmentProgram (Interpolators i) : SV_TARGET {
 	float3 specularTint;
 	float oneMinusReflectivity;
 	albedo = DiffuseAndSpecularFromMetallic(
-		albedo, _Metallic, specularTint, oneMinusReflectivity
+		albedo, GetMetallic(i), specularTint, oneMinusReflectivity
 	);
 
 	return UNITY_BRDF_PBS(
 		albedo, specularTint,
-		oneMinusReflectivity, _Smoothness,
+		oneMinusReflectivity, GetSmoothness(i),
 		i.normal, viewDir,
 		CreateLight(i), CreateIndirectLight(i, viewDir)
 	);
