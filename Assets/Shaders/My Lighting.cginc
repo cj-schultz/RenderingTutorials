@@ -14,9 +14,11 @@ sampler2D _NormalMap, _DetailNormalMap;
 float _BumpScale, _DetailBumpScale;
 
 sampler2D _MetallicMap;
+sampler2D _EmissionMap;
 
 float _Metallic;
 float _Smoothness;
+float4 _Emission;
 
 struct VertexData {
 	float4 vertex : POSITION;
@@ -58,11 +60,31 @@ float GetMetallic(Interpolators i)
 
 float GetSmoothness(Interpolators i)
 {
-#ifdef _METALLIC_MAP
-	return tex2D(_MetallicMap, i.uv).a * _Smoothness;
-#else
-	return _Smoothness;
+	float smoothness = 1;
+#if defined(_SMOOTHNESS_ALBEDO)
+	smoothness = tex2D(_MainTex, i.uv).a;
+#elif defined(_SMOOTHNESS_METALLIC) && defined(_METALLIC_MAP)	
+	smoothness = tex2D(_MetallicMap, i.uv).a;
 #endif
+	return smoothness * _Smoothness;
+}
+
+float3 GetEmission(Interpolators i)
+{
+	float3 emission = 0;
+
+#ifdef FORWARD_BASE_PASS
+	#ifdef _EMISSION_MAP
+		return tex2D(_EmissionMap, i.uv.xy) * _Emission;
+	#else
+		return _Emission;
+	#endif
+#else
+	return 0;
+#endif
+
+
+	return emission;
 }
 
 void ComputeVertexLightColor (inout Interpolators i) {
@@ -216,12 +238,15 @@ float4 MyFragmentProgram (Interpolators i) : SV_TARGET {
 		albedo, GetMetallic(i), specularTint, oneMinusReflectivity
 	);
 
-	return UNITY_BRDF_PBS(
+	float4 color =UNITY_BRDF_PBS(
 		albedo, specularTint,
 		oneMinusReflectivity, GetSmoothness(i),
 		i.normal, viewDir,
 		CreateLight(i), CreateIndirectLight(i, viewDir)
 	);
+
+	color.rgb += GetEmission(i);
+	return color;
 }
 
 #endif
