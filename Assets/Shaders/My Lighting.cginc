@@ -14,10 +14,12 @@ sampler2D _NormalMap, _DetailNormalMap;
 float _BumpScale, _DetailBumpScale;
 
 sampler2D _MetallicMap;
+sampler2D _OcclusionMap;
 sampler2D _EmissionMap;
 
 float _Metallic;
 float _Smoothness;
+float _OcclusionStrength;
 float4 _Emission;
 
 struct VertexData {
@@ -56,6 +58,15 @@ float GetMetallic(Interpolators i)
 	return _Metallic;
 #endif
 	
+}
+
+float GetOcclusion(Interpolators i)
+{
+#ifdef _OCCLUSION_MAP
+	return lerp(1, tex2D(_OcclusionMap, i.uv).g, _OcclusionStrength);// *_OcclusionStrength
+#else
+	return 1;
+#endif
 }
 
 float GetSmoothness(Interpolators i)
@@ -134,8 +145,7 @@ UnityLight CreateLight (Interpolators i) {
 		light.dir = _WorldSpaceLightPos0.xyz;
 	#endif
 
-	UNITY_LIGHT_ATTENUATION(attenuation, i, i.worldPos);
-
+	UNITY_LIGHT_ATTENUATION(attenuation, i, i.worldPos);	
 	light.color = _LightColor0.rgb * attenuation;
 	light.ndotl = DotClamped(i.normal, light.dir);
 	return light;
@@ -184,7 +194,7 @@ UnityIndirect CreateIndirectLight (Interpolators i, float3 viewDir) {
 			unity_SpecCube1_BoxMin, unity_SpecCube1_BoxMax
 		);
 
-#if UNITY_SPECCUBE_BLENDING
+	#if UNITY_SPECCUBE_BLENDING
 		float interpolator = unity_SpecCube0_BoxMin.w;
 		UNITY_BRANCH
 		if (interpolator < 0.999999)
@@ -196,9 +206,13 @@ UnityIndirect CreateIndirectLight (Interpolators i, float3 viewDir) {
 		{
 			indirectLight.specular = probe0;
 		}				
-#else
+	#else
 		indirectLight.specular = probe0;
-#endif
+	#endif
+
+		float occlusion = GetOcclusion(i);
+		indirectLight.diffuse *= occlusion;
+		indirectLight.specular *= occlusion;
 	#endif
 
 	return indirectLight;

@@ -55,7 +55,8 @@ public class MyLightingShaderGUI : ShaderGUI
         DoMetallic();
         DoSmoothness();
         DoNormals();
-        DoEmission();
+        DoOcclusion();
+        DoEmission();        
 
         editor.TextureScaleOffsetProperty(mainTex);
     }
@@ -116,6 +117,17 @@ public class MyLightingShaderGUI : ShaderGUI
         editor.TexturePropertySingleLine(MakeLabel(map), map, map.textureValue ? FindProperty("_BumpScale") : null);
     }
 
+    private void DoOcclusion()
+    {
+        MaterialProperty map = FindProperty("_OcclusionMap");
+        EditorGUI.BeginChangeCheck();
+        editor.TexturePropertySingleLine(MakeLabel(map, "Occlusion (G)"), map, map.textureValue ? FindProperty("_OcclusionStrength") : null);
+        if (EditorGUI.EndChangeCheck())
+        {
+            SetKeyword("_OCCLUSION_MAP", map.textureValue);
+        }
+    }
+
     private void DoEmission()
     {
         MaterialProperty map = FindProperty("_EmissionMap");
@@ -126,7 +138,7 @@ public class MyLightingShaderGUI : ShaderGUI
             SetKeyword("_EMISSION_MAP", map.textureValue);
         }
     }
-
+    
     private void DoSecondaryNormals()
     {
         MaterialProperty map = FindProperty("_DetailNormalMap");

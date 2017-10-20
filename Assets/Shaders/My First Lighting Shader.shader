@@ -20,6 +20,9 @@ Shader "Custom/My First Lighting Shader"
 
 		[NoScaleOffset] _EmissionMap("Emission", 2D) = "black" {}
 		_Emission("Emission", Color) = (0, 0, 0)
+
+		[NoScaleOffset] _OcclusionMap("Occlusion", 2D) = "white" {}
+		_OcclusionStrength("Occlusion Strength", Range(0,1)) = 1
 	}
 
 	CGINCLUDE
@@ -42,6 +45,7 @@ Shader "Custom/My First Lighting Shader"
 			#pragma shader_feature _METALLIC_MAP			
 			#pragma shader_feature _ _SMOOTHNESS_METALLIC _SMOOTHNESS_ALBEDO
 			#pragma shader_feature _EMISSION_MAP
+			#pragma shader_feature _OCCLUSION_MAP
 
 			#pragma multi_compile _ SHADOWS_SCREEN
 			#pragma multi_compile _ VERTEXLIGHT_ON
