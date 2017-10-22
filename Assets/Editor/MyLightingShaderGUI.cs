@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using UnityEngine.Rendering;
 
 public class MyLightingShaderGUI : ShaderGUI
 {
@@ -10,18 +11,56 @@ public class MyLightingShaderGUI : ShaderGUI
     MaterialProperty[] properties;
 
     enum SmoothnessSource { Uniform, Albedo, Metallic }
+    enum RenderingMode { Opaque, Cutout, Fade, Transparent }
+
+    struct RenderingSettings
+    {
+        public RenderQueue queue;
+        public string renderType;
+        public BlendMode srcBlend, dstBlend;
+        public bool zWrite;
+
+        public static RenderingSettings[] modes =
+        {
+            new RenderingSettings()
+            {
+                queue = RenderQueue.Geometry,
+                renderType = "",
+                srcBlend = BlendMode.One,
+                dstBlend = BlendMode.Zero,
+                zWrite = true,
+            },
+            new RenderingSettings()
+            {
+                queue = RenderQueue.AlphaTest,
+                renderType = "TransparentCutout",
+                srcBlend = BlendMode.One,
+                dstBlend = BlendMode.Zero,
+                zWrite = true,
+            },
+            new RenderingSettings()
+            {
+                queue = RenderQueue.Transparent,
+                renderType = "Transparent",
+                srcBlend = BlendMode.SrcAlpha,
+                dstBlend = BlendMode.OneMinusSrcAlpha,
+                zWrite = false,
+            },
+            new RenderingSettings()
+            {
+                queue = RenderQueue.Transparent,
+                renderType = "Transparent",
+                srcBlend = BlendMode.One,
+                dstBlend = BlendMode.OneMinusSrcAlpha,
+                zWrite = false,
+            },
+        };
+    }
 
     static GUIContent staticLabel = new GUIContent();
     static ColorPickerHDRConfig emissionConfig = new ColorPickerHDRConfig(0, 99, 1 / 99, 3);
 
-    public override void OnGUI(MaterialEditor editor, MaterialProperty[] properties)
-    {
-        this.target = (Material)editor.target;
-        this.editor = editor;
-        this.properties = properties;
-        DoMain();
-        DoSecondary();        
-    }
+    bool shouldShowAlphaCutoff;
 
     private void RecordAction(string label)
     {
@@ -30,9 +69,9 @@ public class MyLightingShaderGUI : ShaderGUI
 
     private void SetKeyword(string keyword, bool state)
     {
-        if(state)
-        {            
-            foreach(Material m in editor.targets)
+        if (state)
+        {
+            foreach (Material m in editor.targets)
             {
                 m.EnableKeyword(keyword);
             }
@@ -42,13 +81,62 @@ public class MyLightingShaderGUI : ShaderGUI
             foreach (Material m in editor.targets)
             {
                 m.DisableKeyword(keyword);
-            }            
+            }
         }
     }
 
     private bool IsKeywordEnabled(string keyword)
     {
         return target.IsKeywordEnabled(keyword);
+    }
+
+    public override void OnGUI(MaterialEditor editor, MaterialProperty[] properties)
+    {
+        this.target = (Material)editor.target;
+        this.editor = editor;
+        this.properties = properties;
+        DoRenderingMode();
+        DoMain();
+        DoSecondary();        
+    }
+
+    private void DoRenderingMode()
+    {
+        RenderingMode mode = RenderingMode.Opaque;
+        shouldShowAlphaCutoff = false;
+        if(IsKeywordEnabled("_RENDERING_CUTOUT"))
+        {
+            mode = RenderingMode.Cutout;
+            shouldShowAlphaCutoff = true;
+        }
+        else if(IsKeywordEnabled("_RENDERING_FADE"))
+        {
+            mode = RenderingMode.Fade;            
+        }
+        else if (IsKeywordEnabled("_RENDERING_TRANSPARENT"))
+        {
+            mode = RenderingMode.Transparent;
+        }
+
+        EditorGUI.BeginChangeCheck();
+        mode = (RenderingMode)EditorGUILayout.EnumPopup(MakeLabel("Rendering Mode"), mode);        
+        if(EditorGUI.EndChangeCheck())
+        {
+            RecordAction("Rendering Mode");
+            SetKeyword("_RENDERING_CUTOUT", mode == RenderingMode.Cutout);
+            SetKeyword("_RENDERING_FADE", mode == RenderingMode.Fade);
+            SetKeyword("_RENDERING_TRANSPARENT", mode == RenderingMode.Transparent);
+
+            RenderingSettings settings = RenderingSettings.modes[(int)mode];            
+            foreach(Material m in editor.targets)
+            {                
+                m.renderQueue = (int)settings.queue;
+                m.SetOverrideTag("RenderType", settings.renderType);
+                m.SetInt("_SrcBlend", (int)settings.srcBlend);
+                m.SetInt("_DstBlend", (int)settings.dstBlend);
+                m.SetInt("_ZWrite", settings.zWrite ? 1 : 0);
+            }
+        }
     }
 
     private void DoMain()
@@ -58,6 +146,10 @@ public class MyLightingShaderGUI : ShaderGUI
         MaterialProperty mainTex = FindProperty("_MainTex");        
         editor.TexturePropertySingleLine(MakeLabel(mainTex, "Albedo (RGB)"), mainTex, FindProperty("_Tint"));
 
+        if(shouldShowAlphaCutoff)
+        {
+            DoAlphaCutoff();
+        }        
         DoMetallic();
         DoSmoothness();
         DoNormals();
@@ -95,6 +187,14 @@ public class MyLightingShaderGUI : ShaderGUI
         {
             SetKeyword("_METALLIC_MAP", map.textureValue);            
         }        
+    }
+
+    private void DoAlphaCutoff()
+    {
+        MaterialProperty slider = FindProperty("_AlphaCutoff");
+        EditorGUI.indentLevel += 2;
+        editor.ShaderProperty(slider, MakeLabel(slider));
+        EditorGUI.indentLevel -= 2;
     }
 
     private void DoSmoothness()

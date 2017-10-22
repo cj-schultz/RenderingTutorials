@@ -23,9 +23,14 @@ Shader "Custom/My First Lighting Shader"
 		_DetailTex("Detail Albedo", 2D) = "gray" {}
 		[NoScaleOffset]_DetailNormalMap("Detail Normals", 2D) = "bump" {}
 		_DetailBumpScale("Detail Bump Scale", Float) = 1
-
 		
 		[NoScaleOffset] _DetailMask("Detail Mask", 2D) = "white" {}
+
+		_AlphaCutoff("Alpha Cutoff", Range(0, 1)) = 0.5
+
+		[HideInInspector]_SrcBlend("_SrcBlend", Float) = 1
+		[HideInInspector]_DstBlend("_DstBlend", Float) = 0
+		[HideInInspector]_ZWrite("_ZWrite", Float) = 1
 	}
 
 	CGINCLUDE
@@ -33,7 +38,7 @@ Shader "Custom/My First Lighting Shader"
 	ENDCG
 
 	SubShader
-	{
+	{		
 		Pass
 		{
 			Tags
@@ -41,6 +46,8 @@ Shader "Custom/My First Lighting Shader"
 				"LightMode" = "ForwardBase"
 			}
 
+			Blend [_SrcBlend] [_DstBlend]
+			ZWrite [_ZWrite]
 			CGPROGRAM
 
 			#pragma target 3.0
@@ -53,6 +60,7 @@ Shader "Custom/My First Lighting Shader"
 			#pragma shader_feature _DETAIL_MASK
 			#pragma shader_feature _DETAIL_ALBEDO_MAP
 			#pragma shader_feature _DETAIL_NORMAL_MAP
+			#pragma shader_feature _ _RENDERING_CUTOUT _RENDERING_FADE _RENDERING_TRANSPARENT
 
 			#pragma multi_compile _ SHADOWS_SCREEN
 			#pragma multi_compile _ VERTEXLIGHT_ON
@@ -73,7 +81,7 @@ Shader "Custom/My First Lighting Shader"
 				"LightMode" = "ForwardAdd"
 			}
 
-			Blend One One
+			Blend[_SrcBlend] One			
 			ZWrite Off
 
 			CGPROGRAM
@@ -86,6 +94,7 @@ Shader "Custom/My First Lighting Shader"
 			#pragma shader_feature _DETAIL_MASK
 			#pragma shader_feature _DETAIL_ALBEDO_MAP
 			#pragma shader_feature _DETAIL_NORMAL_MAP
+			#pragma shader_feature _ _RENDERING_CUTOUT _RENDERING_FADE _RENDERING_TRANSPARENT
 
 			#pragma multi_compile _ METALLIC_MAP
 			#pragma multi_compile_fwdadd_fullshadows
