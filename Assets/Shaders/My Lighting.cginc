@@ -7,7 +7,7 @@
 #include "AutoLight.cginc"
 
 float4 _Tint;
-sampler2D _MainTex, _DetailTex;
+sampler2D _MainTex, _DetailTex, _DetailMask;
 float4 _MainTex_ST, _DetailTex_ST;
 
 sampler2D _NormalMap, _DetailNormalMap;
@@ -49,6 +49,15 @@ struct Interpolators {
 		float3 vertexLightColor : TEXCOORD6;
 	#endif
 };
+
+float GetDetailMask(Interpolators i)
+{
+#ifdef _DETAIL_MASK
+	return tex2D(_DetailMask, i.uv.xy).a;
+#else
+	return 1;
+#endif
+}
 
 float GetMetallic(Interpolators i)
 {
@@ -96,6 +105,32 @@ float3 GetEmission(Interpolators i)
 
 
 	return emission;
+}
+
+float3 GetAlbedo(Interpolators i)
+{
+	float3 albedo = tex2D(_MainTex, i.uv.xy).rgb * _Tint.rgb;
+#ifdef _DETAIL_ALBEDO_MAP
+	float3 details = tex2D(_DetailTex, i.uv.zw) * unity_ColorSpaceDouble;
+	albedo = lerp(albedo, albedo * details, GetDetailMask(i));	
+#endif
+	return albedo;
+}
+
+
+float3 GetTangentSpaceNormal(Interpolators i)
+{
+	float3 normal = float3(0, 0, 1);
+
+#ifdef _NORMAL_MAP
+	normal = UnpackScaleNormal(tex2D(_NormalMap, i.uv.xy), _BumpScale);
+#endif
+#ifdef _DETAIL_NORMAL_MAP
+	float3 detailNormal = UnpackScaleNormal(tex2D(_DetailNormalMap, i.uv.zw), _DetailBumpScale);
+	detailNormal = lerp(float3(0, 0, 1), detailNormal, GetDetailMask(i));
+	normal = BlendNormals(normal, detailNormal);
+#endif
+	return normal;
 }
 
 void ComputeVertexLightColor (inout Interpolators i) {
@@ -218,12 +253,8 @@ UnityIndirect CreateIndirectLight (Interpolators i, float3 viewDir) {
 	return indirectLight;
 }
 
-void InitializeFragmentNormal(inout Interpolators i) {
-	float3 mainNormal =
-		UnpackScaleNormal(tex2D(_NormalMap, i.uv.xy), _BumpScale);
-	float3 detailNormal =
-		UnpackScaleNormal(tex2D(_DetailNormalMap, i.uv.zw), _DetailBumpScale);
-	float3 tangentSpaceNormal = BlendNormals(mainNormal, detailNormal);
+void InitializeFragmentNormal(inout Interpolators i) {	
+	float3 tangentSpaceNormal = GetTangentSpaceNormal(i);
 
 	#if defined(BINORMAL_PER_FRAGMENT)
 		float3 binormal = CreateBinormal(i.normal, i.tangent.xyz, i.tangent.w);
@@ -242,17 +273,14 @@ float4 MyFragmentProgram (Interpolators i) : SV_TARGET {
 	InitializeFragmentNormal(i);
 
 	float3 viewDir = normalize(_WorldSpaceCameraPos - i.worldPos);
-
-	float3 albedo = tex2D(_MainTex, i.uv.xy).rgb * _Tint.rgb;
-	albedo *= tex2D(_DetailTex, i.uv.zw) * unity_ColorSpaceDouble;
-
+	
 	float3 specularTint;
 	float oneMinusReflectivity;
-	albedo = DiffuseAndSpecularFromMetallic(
-		albedo, GetMetallic(i), specularTint, oneMinusReflectivity
+	float3 albedo = DiffuseAndSpecularFromMetallic(
+		GetAlbedo(i), GetMetallic(i), specularTint, oneMinusReflectivity
 	);
 
-	float4 color =UNITY_BRDF_PBS(
+	float4 color = UNITY_BRDF_PBS(
 		albedo, specularTint,
 		oneMinusReflectivity, GetSmoothness(i),
 		i.normal, viewDir,
