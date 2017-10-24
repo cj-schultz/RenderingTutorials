@@ -27,7 +27,7 @@ Shader "Custom/My First Lighting Shader"
 		[NoScaleOffset] _DetailMask("Detail Mask", 2D) = "white" {}
 
 		_AlphaCutoff("Alpha Cutoff", Range(0, 1)) = 0.5
-
+		
 		[HideInInspector]_SrcBlend("_SrcBlend", Float) = 1
 		[HideInInspector]_DstBlend("_DstBlend", Float) = 0
 		[HideInInspector]_ZWrite("_ZWrite", Float) = 1
@@ -118,8 +118,12 @@ Shader "Custom/My First Lighting Shader"
 
 			#pragma target 3.0
 
-			#pragma multi_compile_shadowcaster
+			#pragma shader_feature _SEMITRANSPARENT_SHADOWS
+			#pragma shader_feature _SMOOTHNESS_ALBEDO
+			#pragma shader_feature _ _RENDERING_CUTOUT _RENDERING_FADE _RENDERING_TRANSPARENT
 
+			#pragma multi_compile_shadowcaster
+			
 			#pragma vertex MyShadowVertexProgram
 			#pragma fragment MyShadowFragmentProgram			
 

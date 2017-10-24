@@ -104,7 +104,6 @@ float3 GetEmission(Interpolators i)
 	return 0;
 #endif
 
-
 	return emission;
 }
 
@@ -158,7 +157,8 @@ float3 CreateBinormal (float3 normal, float3 tangent, float binormalSign) {
 		(binormalSign * unity_WorldTransformParams.w);
 }
 
-Interpolators MyVertexProgram (VertexData v) {
+Interpolators MyVertexProgram (VertexData v) 
+{
 	Interpolators i;
 	i.pos = UnityObjectToClipPos(v.vertex);
 	i.worldPos = mul(unity_ObjectToWorld, v.vertex);
