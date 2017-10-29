@@ -51,6 +51,18 @@ struct Interpolators {
 	#endif
 };
 
+struct FragmentOutput
+{
+#if defined(DEFERRED_PASS)
+	float4 gBuffer0 : SV_Target0;
+	float4 gBuffer1 : SV_Target1;
+	float4 gBuffer2 : SV_Target2;
+	float4 gBuffer3 : SV_Target3;
+#else
+	float4 color;
+#endif
+};
+
 float GetDetailMask(Interpolators i)
 {
 #ifdef _DETAIL_MASK
@@ -94,7 +106,7 @@ float3 GetEmission(Interpolators i)
 {
 	float3 emission = 0;
 
-#ifdef FORWARD_BASE_PASS
+#if defined(FORWARD_BASE_PASS) || defined(DEFERRED_PASS)
 	#ifdef _EMISSION_MAP
 		return tex2D(_EmissionMap, i.uv.xy) * _Emission;
 	#else
@@ -157,6 +169,19 @@ float3 CreateBinormal (float3 normal, float3 tangent, float binormalSign) {
 		(binormalSign * unity_WorldTransformParams.w);
 }
 
+float3 BoxProjection(float3 direction, float3 position, float4 cubemapPosition, float3 boxMin, float3 boxMax)
+{
+#if UNITY_SPECCUBE_BOX_PROJECTION
+	UNITY_BRANCH
+		if (cubemapPosition.w > 0) {
+			float3 factors = ((direction > 0 ? boxMax : boxMin) - position) / direction;
+			float scalar = min(min(factors.x, factors.y), factors.z);
+			direction = direction * scalar + (position - cubemapPosition);
+		}
+#endif
+	return direction;
+}
+
 Interpolators MyVertexProgram (VertexData v) 
 {
 	Interpolators i;
@@ -183,60 +208,51 @@ Interpolators MyVertexProgram (VertexData v)
 UnityLight CreateLight (Interpolators i) {
 	UnityLight light;
 
-	#if defined(POINT) || defined(POINT_COOKIE) || defined(SPOT)
-		light.dir = normalize(_WorldSpaceLightPos0.xyz - i.worldPos);
+	#if defined(DEFERRED_PASS)
+		light.dir = float3(0, 1, 0);
+		light.color = 0;
 	#else
-		light.dir = _WorldSpaceLightPos0.xyz;
+		#if defined(POINT) || defined(POINT_COOKIE) || defined(SPOT)
+			light.dir = normalize(_WorldSpaceLightPos0.xyz - i.worldPos);
+		#else
+			light.dir = _WorldSpaceLightPos0.xyz;
+		#endif
+		UNITY_LIGHT_ATTENUATION(attenuation, i, i.worldPos);
+		light.color = _LightColor0.rgb * attenuation;
 	#endif
 
-	UNITY_LIGHT_ATTENUATION(attenuation, i, i.worldPos);	
-	light.color = _LightColor0.rgb * attenuation;
-	light.ndotl = DotClamped(i.normal, light.dir);
 	return light;
 }
 
-float3 BoxProjection (float3 direction, float3 position, float4 cubemapPosition, float3 boxMin, float3 boxMax)
-{
-#if UNITY_SPECCUBE_BOX_PROJECTION
-	UNITY_BRANCH
-	if (cubemapPosition.w > 0) {
-		float3 factors = ((direction > 0 ? boxMax : boxMin) - position) / direction;
-		float scalar = min(min(factors.x, factors.y), factors.z);
-		direction = direction * scalar + (position - cubemapPosition);
-	}
-#endif
-	return direction;
-}
-
-UnityIndirect CreateIndirectLight (Interpolators i, float3 viewDir) {
+UnityIndirect CreateIndirectLight(Interpolators i, float3 viewDir) {
 	UnityIndirect indirectLight;
 	indirectLight.diffuse = 0;
 	indirectLight.specular = 0;
 
-	#if defined(VERTEXLIGHT_ON)
-		indirectLight.diffuse = i.vertexLightColor;
-	#endif
+#if defined(VERTEXLIGHT_ON)
+	indirectLight.diffuse = i.vertexLightColor;
+#endif
 
-	#if defined(FORWARD_BASE_PASS)
-		indirectLight.diffuse += max(0, ShadeSH9(float4(i.normal, 1)));
+#if defined(FORWARD_BASE_PASS) || defined(DEFERRED_PASS)
+	indirectLight.diffuse += max(0, ShadeSH9(float4(i.normal, 1)));
 
-		float3 reflectionDir = reflect(-viewDir, i.normal);
-		Unity_GlossyEnvironmentData envData;
-		envData.roughness = 1 - GetSmoothness(i);
+	float3 reflectionDir = reflect(-viewDir, i.normal);
+	Unity_GlossyEnvironmentData envData;
+	envData.roughness = 1 - GetSmoothness(i);
 
-		envData.reflUVW = BoxProjection(
-			reflectionDir, i.worldPos,
-			unity_SpecCube0_ProbePosition,
-			unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax
-		);
+	envData.reflUVW = BoxProjection(
+		reflectionDir, i.worldPos,
+		unity_SpecCube0_ProbePosition,
+		unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax
+	);
 
-		float3 probe0 = Unity_GlossyEnvironment( UNITY_PASS_TEXCUBE(unity_SpecCube0), unity_SpecCube0_HDR, envData);
+	float3 probe0 = Unity_GlossyEnvironment(UNITY_PASS_TEXCUBE(unity_SpecCube0), unity_SpecCube0_HDR, envData);
 
-		envData.reflUVW = BoxProjection(
-			reflectionDir, i.worldPos,
-			unity_SpecCube1_ProbePosition,
-			unity_SpecCube1_BoxMin, unity_SpecCube1_BoxMax
-		);
+	envData.reflUVW = BoxProjection(
+		reflectionDir, i.worldPos,
+		unity_SpecCube1_ProbePosition,
+		unity_SpecCube1_BoxMin, unity_SpecCube1_BoxMax
+	);
 
 	#if UNITY_SPECCUBE_BLENDING
 		float interpolator = unity_SpecCube0_BoxMin.w;
@@ -249,15 +265,19 @@ UnityIndirect CreateIndirectLight (Interpolators i, float3 viewDir) {
 		else
 		{
 			indirectLight.specular = probe0;
-		}				
+		}
 	#else
 		indirectLight.specular = probe0;
 	#endif
 
-		float occlusion = GetOcclusion(i);
-		indirectLight.diffuse *= occlusion;
-		indirectLight.specular *= occlusion;
+	float occlusion = GetOcclusion(i);
+	indirectLight.diffuse *= occlusion;
+	indirectLight.specular *= occlusion;
+
+	#if defined(DEFERRED_PASS) && UNITY_ENABLE_REFLECTION_BUFFERS
+		indirectLight.specular = 0;
 	#endif
+#endif
 
 	return indirectLight;
 }
@@ -278,7 +298,7 @@ void InitializeFragmentNormal(inout Interpolators i) {
 	);
 }
 
-float4 MyFragmentProgram (Interpolators i) : SV_TARGET {
+FragmentOutput MyFragmentProgram (Interpolators i) : SV_TARGET {
 	float alpha = GetAlpha(i);
 #if defined(_RENDERING_CUTOUT)
 	clip(alpha - _AlphaCutoff);
@@ -308,7 +328,23 @@ float4 MyFragmentProgram (Interpolators i) : SV_TARGET {
 #if defined(_RENDERING_FADE) || defined(_RENDERING_TRANSPARENT)
 	color.a = alpha;
 #endif
-	return color;
+
+	FragmentOutput output;
+#if defined(DEFERRED_PASS)
+	#if !defined(UNITY_HDR_ON)
+		color.rgb = exp2(-color.rgb);
+	#endif
+	output.gBuffer0.rgb = albedo;
+	output.gBuffer0.a = GetOcclusion(i);
+	output.gBuffer1.rgb = specularTint;
+	output.gBuffer1.a = GetSmoothness(i);
+	output.gBuffer2 = float4(i.normal * 0.5 + 0.5, 1);
+	output.gBuffer3 = color;
+#else
+	output.color = color;
+#endif
+
+	return output;
 }
 
 #endif
