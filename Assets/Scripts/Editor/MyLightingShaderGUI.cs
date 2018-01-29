@@ -60,15 +60,19 @@ public class MyLightingShaderGUI : ShaderGUI {
 	MaterialProperty[] properties;
 	bool shouldShowAlphaCutoff;
 
-	public override void OnGUI (
-		MaterialEditor editor, MaterialProperty[] properties
-	) {
+	public override void OnGUI (MaterialEditor editor, MaterialProperty[] properties)
+    {
 		this.target = editor.target as Material;
 		this.editor = editor;
 		this.properties = properties;
 		DoRenderingMode();
+        if(target.HasProperty("_WireframeColor"))
+        {
+            DoWireframe();
+        }
 		DoMain();
 		DoSecondary();
+		DoAdvanced();
 	}
 
 	void DoRenderingMode () {
@@ -127,12 +131,22 @@ public class MyLightingShaderGUI : ShaderGUI {
 		}
 	}
 
+    void DoWireframe()
+    {
+        GUILayout.Label("Wireframe", EditorStyles.boldLabel);
+        EditorGUI.indentLevel += 2;
+        editor.ShaderProperty(FindProperty("_WireframeColor"), MakeLabel("Color"));
+        editor.ShaderProperty(FindProperty("_WireframeSmoothing"), MakeLabel("Smoothing", "In screen space."));
+        editor.ShaderProperty(FindProperty("_WireframeThickness"), MakeLabel("Thickness", "In screen space."));
+        EditorGUI.indentLevel -= 2;
+    }
+
 	void DoMain () {
 		GUILayout.Label("Main Maps", EditorStyles.boldLabel);
 
 		MaterialProperty mainTex = FindProperty("_MainTex");
 		editor.TexturePropertySingleLine(
-			MakeLabel(mainTex, "Albedo (RGB)"), mainTex, FindProperty("_Tint")
+			MakeLabel(mainTex, "Albedo (RGB)"), mainTex, FindProperty("_Color")
 		);
 
 		if (shouldShowAlphaCutoff) {
@@ -141,6 +155,7 @@ public class MyLightingShaderGUI : ShaderGUI {
 		DoMetallic();
 		DoSmoothness();
 		DoNormals();
+		DoParallax();
 		DoOcclusion();
 		DoEmission();
 		DoDetailMask();
@@ -148,7 +163,7 @@ public class MyLightingShaderGUI : ShaderGUI {
 	}
 
 	void DoAlphaCutoff () {
-		MaterialProperty slider = FindProperty("_AlphaCutoff");
+		MaterialProperty slider = FindProperty("_Cutoff");
 		EditorGUI.indentLevel += 2;
 		editor.ShaderProperty(slider, MakeLabel(slider));
 		EditorGUI.indentLevel -= 2;
@@ -206,6 +221,19 @@ public class MyLightingShaderGUI : ShaderGUI {
 		EditorGUI.indentLevel -= 3;
 	}
 
+	void DoParallax () {
+		MaterialProperty map = FindProperty("_ParallaxMap");
+		Texture tex = map.textureValue;
+		EditorGUI.BeginChangeCheck();
+		editor.TexturePropertySingleLine(
+			MakeLabel(map, "Parallax (G)"), map,
+			tex ? FindProperty("_ParallaxStrength") : null
+		);
+		if (EditorGUI.EndChangeCheck() && tex != map.textureValue) {
+			SetKeyword("_PARALLAX_MAP", map.textureValue);
+		}
+	}
+
 	void DoOcclusion () {
 		MaterialProperty map = FindProperty("_OcclusionMap");
 		Texture tex = map.textureValue;
@@ -227,8 +255,16 @@ public class MyLightingShaderGUI : ShaderGUI {
 			MakeLabel(map, "Emission (RGB)"), map, FindProperty("_Emission"),
 			emissionConfig, false
 		);
-		if (EditorGUI.EndChangeCheck() && tex != map.textureValue) {
-			SetKeyword("_EMISSION_MAP", map.textureValue);
+		editor.LightmapEmissionProperty(2);
+		if (EditorGUI.EndChangeCheck()) {
+			if (tex != map.textureValue) {
+				SetKeyword("_EMISSION_MAP", map.textureValue);
+			}
+
+			foreach (Material m in editor.targets) {
+				m.globalIlluminationFlags &=
+					~MaterialGlobalIlluminationFlags.EmissiveIsBlack;
+			}
 		}
 	}
 
@@ -269,6 +305,12 @@ public class MyLightingShaderGUI : ShaderGUI {
 		if (EditorGUI.EndChangeCheck() && tex != map.textureValue) {
 			SetKeyword("_DETAIL_NORMAL_MAP", map.textureValue);
 		}
+	}
+
+	void DoAdvanced () {
+		GUILayout.Label("Advanced Options", EditorStyles.boldLabel);
+
+		editor.EnableInstancingField();
 	}
 
 	MaterialProperty FindProperty (string name) {

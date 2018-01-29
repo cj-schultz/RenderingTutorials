@@ -1,6 +1,10 @@
-﻿Shader "Custom/My First Lighting Shader" {
+﻿Shader "Custom/Flat Wireframe" {
 
 	Properties {
+		_WireframeColor ("Wireframe Color", Color) = (0, 0, 0)
+		_WireframeSmoothing ("Wireframe Smoothing", Range(0, 10)) = 1
+		_WireframeThickness("Wireframe Thickness", Range(0, 10)) = 1
+
 		_Color ("Tint", Color) = (1, 1, 1, 1)
 		_MainTex ("Albedo", 2D) = "white" {}
 
@@ -58,7 +62,7 @@
 
 			CGPROGRAM
 
-			#pragma target 3.0
+			#pragma target 4.0
 
 			#pragma shader_feature _ _RENDERING_CUTOUT _RENDERING_FADE _RENDERING_TRANSPARENT
 			#pragma shader_feature _METALLIC_MAP
@@ -80,10 +84,11 @@
 
 			#pragma vertex MyVertexProgram
 			#pragma fragment MyFragmentProgram
+			#pragma geometry MyGeometryProgram
 
 			#define FORWARD_BASE_PASS
 
-			#include "My Lighting.cginc"
+			#include "MyFlatWireframe.cginc"
 
 			ENDCG
 		}
@@ -98,7 +103,7 @@
 
 			CGPROGRAM
 
-			#pragma target 3.0
+			#pragma target 4.0
 
 			#pragma shader_feature _ _RENDERING_CUTOUT _RENDERING_FADE _RENDERING_TRANSPARENT
 			#pragma shader_feature _METALLIC_MAP
@@ -116,8 +121,9 @@
 			
 			#pragma vertex MyVertexProgram
 			#pragma fragment MyFragmentProgram
+			#pragma geomtrey MyGeometryProgram
 
-			#include "My Lighting.cginc"
+			#include "MyFlatWireframe.cginc"
 
 			ENDCG
 		}
@@ -129,7 +135,7 @@
 
 			CGPROGRAM
 
-			#pragma target 3.0
+			#pragma target 4.0
 			#pragma exclude_renderers nomrt
 
 			#pragma shader_feature _ _RENDERING_CUTOUT
@@ -151,10 +157,11 @@
 
 			#pragma vertex MyVertexProgram
 			#pragma fragment MyFragmentProgram
+			#pragma fragment MyGeometryProgram
 
 			#define DEFERRED_PASS
 
-			#include "My Lighting.cginc"
+			#include "MyFlatWireframe.cginc"
 
 			ENDCG
 		}
