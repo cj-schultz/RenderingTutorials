@@ -50,7 +50,7 @@ float _Cutoff;
 
 struct VertexData {
 	UNITY_VERTEX_INPUT_INSTANCE_ID
-		float4 vertex : POSITION;
+	float4 vertex : POSITION;
 	float3 normal : NORMAL;
 	float4 tangent : TANGENT;
 	float2 uv : TEXCOORD0;

@@ -15,10 +15,13 @@ float3 GetAlbedoWithWireframe(Interpolators i) {
 	float3 barys;
 	barys.xy = i.baryCoordinates;
 	barys.z = 1 - barys.x - barys.y;
+
 	float3 deltas = fwidth(barys);
 	float3 smoothing = deltas * _WireframeSmoothing;
 	float3 thickness = deltas * _WireframeThickness;
+
 	barys = smoothstep(thickness, thickness + smoothing, barys);
+
 	float minBary = min(barys.x, min(barys.y, barys.z));	
 	return lerp(_WireframeColor, albedo, minBary);
 }
